@@ -1,0 +1,22 @@
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 2, June 1991
+
+ Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+This project (mahjong-tui) is licensed under GPL-2.0-or-later because
+it bundles layout data from KDE's KMahjongg (GPL-2+, by Mathias
+Mueller, Mauricio Piacentini, and the KDE Games team). Full text of
+the license is available at:
+
+    https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+The `vendor/kmahjongg/` tree carries its own upstream copyright notice
+(see vendor/kmahjongg/COPYRIGHT).
+
+This wrapper code and everything else in this repository is:
+
+    Copyright (C) 2026 Brian Akaka
+    Licensed under GPL-2.0-or-later.
