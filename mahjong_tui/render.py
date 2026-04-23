@@ -73,6 +73,7 @@ class Hotspot:
     row0: int
     col1: int   # exclusive
     row1: int   # exclusive
+    level: int = 0
 
 
 @dataclass
@@ -282,6 +283,7 @@ def _paint_tile(chars, styles, tile: Tile, *, is_free: bool, is_selected: bool,
         tile_id=tile.id,
         col0=col, row0=row,
         col1=col + TILE_W, row1=row + TILE_H,
+        level=tile.level,
     )
 
 
@@ -316,20 +318,16 @@ def strip_for_row(out: RenderOutput, row: int, *, max_width: int) -> list[Segmen
 
 
 def tile_at_cell(out: RenderOutput, col: int, row: int) -> int | None:
-    """Hit-test: return the tile ID at (col, row), or None. If multiple
-    tiles overlap (due to stacking), return the topmost (highest level)."""
-    # Scan hotspots; prefer higher tile_id (since tiles are placed
-    # bottom-up, later tiles are higher in the stack OR to the right on
-    # the same level — either way, "later wins" when cells overlap).
+    """Hit-test: return the tile ID at (col, row), or None. Breaks ties
+    by level — the topmost (highest level) tile wins when stacked tiles
+    overlap the same cell."""
     best: int | None = None
     best_level: int = -1
     for hs in out.hotspots.values():
         if hs.col0 <= col < hs.col1 and hs.row0 <= row < hs.row1:
-            # We need the tile's level — lookup cheapness: hotspots don't
-            # carry level, so we defer level-breaking to the caller via
-            # a secondary lookup. For now, last match wins (bottom-up
-            # paint order means tail iteration gives top tile).
-            best = hs.tile_id
+            if hs.level > best_level:
+                best = hs.tile_id
+                best_level = hs.level
     return best
 
 

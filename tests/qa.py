@@ -388,6 +388,42 @@ async def s_hint_clears_after_timer(app, pilot):
     assert app.board.hint_pair is None
 
 
+async def s_topmost_tile_wins_hit_test(app, pilot):
+    # Pick a tile with level > 0 and confirm tile_at_cell returns it,
+    # not any lower tile whose hotspot overlaps.
+    high = [t for t in app.game.tiles.values() if t.level > 0]
+    if not high:
+        return  # layout with no stack — nothing to test
+    t = high[0]
+    out = app.board._render_out
+    assert out is not None
+    hs = out.hotspots[t.id]
+    hit = R.tile_at_cell(out, hs.col0, hs.row0)
+    assert hit == t.id, (
+        f"expected topmost {t.id} (level {t.level}), got {hit}"
+    )
+
+
+async def s_remove_same_tile_is_rejected(app, pilot):
+    t = next(iter(app.game.tiles.values()))
+    ok = app.game.remove_pair(t, t)
+    assert not ok, "removing a tile with itself must fail"
+
+
+async def s_remove_unfree_rejected(app, pilot):
+    # Find a non-free tile and try to pair it with anything matching.
+    blocked = [t for t in app.game.tiles.values() if not app.game.is_free(t)]
+    if not blocked:
+        return
+    a = blocked[0]
+    # Any free tile with same face (maybe none — skip if so).
+    for b in app.game.free_tiles():
+        if tileset.match(a.face, b.face):
+            ok = app.game.remove_pair(a, b)
+            assert not ok, "must not remove when one side is blocked"
+            return
+
+
 async def s_undo_after_shuffle_is_safe(app, pilot):
     # Remove a pair, shuffle (clears history), then undo should be a no-op
     # and must not crash.
@@ -423,6 +459,9 @@ SCENARIOS: list[Scenario] = [
     Scenario("undo_restores_pair", s_undo_restores_pair),
     Scenario("undo_empty_is_noop", s_undo_empty_is_noop),
     Scenario("undo_after_shuffle_is_safe", s_undo_after_shuffle_is_safe),
+    Scenario("topmost_tile_wins_hit_test", s_topmost_tile_wins_hit_test),
+    Scenario("remove_same_tile_is_rejected", s_remove_same_tile_is_rejected),
+    Scenario("remove_unfree_rejected", s_remove_unfree_rejected),
     Scenario("shuffle_preserves_tile_count", s_shuffle_preserves_tile_count),
     Scenario("new_game_reseeds", s_new_game_reseeds),
     Scenario("toggle_ascii_changes_mode", s_toggle_ascii_changes_mode),

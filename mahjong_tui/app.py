@@ -107,18 +107,8 @@ class BoardView(ScrollView):
         # Widget-relative coords + scroll offset → virtual grid coords.
         col = event.x + int(self.scroll_offset.x)
         row = event.y + int(self.scroll_offset.y)
-        # Find the TOPMOST tile at this cell. Since render_board paints
-        # bottom-up and later tiles visually overwrite earlier ones, the
-        # tile whose hotspot contains this cell AND whose level is
-        # highest wins. We look up the game to break ties.
-        best_id: int | None = None
-        best_level: int = -1
-        for hs in self._render_out.hotspots.values():
-            if hs.col0 <= col < hs.col1 and hs.row0 <= row < hs.row1:
-                tile = self.game.tiles.get(hs.tile_id)
-                if tile is not None and tile.level > best_level:
-                    best_id = hs.tile_id
-                    best_level = tile.level
+        # tile_at_cell breaks ties by level (topmost wins).
+        best_id = R.tile_at_cell(self._render_out, col, row)
         if best_id is None:
             return
         # Post a message the App handles — keeps mouse + keyboard unified.
