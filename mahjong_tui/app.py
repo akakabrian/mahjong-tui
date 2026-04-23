@@ -22,6 +22,7 @@ from . import render as R
 from . import tiles as tileset
 from .game import Game, Tile
 from .layout import Layout, parse_layout, available_layouts, load_desktop_metadata
+from .screens import HelpScreen, LayoutPickerScreen, GameEndScreen
 
 
 VENDOR_LAYOUTS = Path(__file__).resolve().parent.parent / "vendor" / "kmahjongg" / "layouts"
@@ -209,6 +210,15 @@ class MahjongApp(App):
         Binding("n", "new_game", "New"),
         Binding("l", "layout_picker", "Layout"),
         Binding("a", "toggle_ascii", "ASCII"),
+        Binding("question_mark", "help", "Help"),
+        Binding("up", "cursor_move('up')", "↑", show=False, priority=True),
+        Binding("down", "cursor_move('down')", "↓", show=False, priority=True),
+        Binding("left", "cursor_move('left')", "←", show=False, priority=True),
+        Binding("right", "cursor_move('right')", "→", show=False, priority=True),
+        Binding("tab", "cursor_move('next')", "Next free", show=False, priority=True),
+        Binding("shift+tab", "cursor_move('prev')", "Prev free", show=False, priority=True),
+        Binding("enter", "cursor_confirm", "Pick", show=False, priority=True),
+        Binding("space", "cursor_confirm", "Pick", show=False, priority=True),
         Binding("escape", "cancel_selection", "Cancel", show=False),
     ]
 
@@ -331,27 +341,31 @@ class MahjongApp(App):
         self.stats.refresh_panel()
 
     def action_layout_picker(self) -> None:
-        # Simple cycle for now — modal picker comes in Phase B.
-        layouts = available_layouts(USER_LAYOUTS, VENDOR_LAYOUTS)
-        if not layouts:
-            self.info.show("[red]No layouts found.[/]")
-            return
-        names = [p.name for _n, p in layouts]
-        cur = self._layout_path.name
-        try:
-            i = names.index(cur)
-        except ValueError:
-            i = -1
-        next_path = layouts[(i + 1) % len(layouts)][1]
-        self._layout_path = next_path
-        layout = parse_layout(next_path)
-        meta = load_desktop_metadata(next_path.with_suffix(".desktop"))
+        """Open a modal picker over all bundled + user layouts."""
+
+        def _picked(path: Path | None) -> None:
+            if path is None:
+                return
+            self._load_layout(path)
+
+        self.push_screen(
+            LayoutPickerScreen(USER_LAYOUTS, VENDOR_LAYOUTS,
+                               current=self._layout_path),
+            _picked,
+        )
+
+    def _load_layout(self, path: Path) -> None:
+        """Swap the current layout and re-deal. Used by the layout picker."""
+        self._layout_path = path
+        layout = parse_layout(path)
+        meta = load_desktop_metadata(path.with_suffix(".desktop"))
         layout.name = meta.get("Name", layout.name)
         self.game = Game.new(layout, seed=random.randint(0, 2**31 - 1))
         self.board.game = self.game
         self.stats.game = self.game
         self.board.select(None)
         self.board.set_hint(None)
+        self.board.cursor_id = None
         self.board._virtual_sized = False
         self.board.refresh_board()
         self.board.border_title = (
@@ -371,6 +385,98 @@ class MahjongApp(App):
         if self.board.selected_id is not None:
             self.board.select(None)
             self.info.show("Selection cleared.")
+        elif self.board.cursor_id is not None:
+            self.board.cursor_id = None
+            self.board.refresh_board()
+
+    # ---- keyboard cursor ----------------------------------------------
+
+    def action_cursor_move(self, direction: str) -> None:
+        """Walk through free tiles by direction.
+
+        'next'/'prev' step through the free-tile list in ID order.
+        'up'/'down'/'left'/'right' pick the nearest free tile in that
+        direction in grid coordinates.
+        """
+        free = sorted(self.game.free_tiles(),
+                      key=lambda t: (t.qy, t.qx, t.level))
+        if not free:
+            return
+        cur_id = self.board.cursor_id
+        cur_tile = self.game.tiles.get(cur_id) if cur_id is not None else None
+        if cur_tile is None or cur_id not in {t.id for t in free}:
+            # No cursor yet — anchor at the first free tile.
+            self.board.cursor_id = free[0].id
+            self.board.refresh_board()
+            return
+        if direction in ("next", "prev"):
+            ids = [t.id for t in free]
+            i = ids.index(cur_id)
+            step = 1 if direction == "next" else -1
+            self.board.cursor_id = ids[(i + step) % len(ids)]
+        else:
+            # Nearest free tile in the given direction by grid position.
+            cx, cy, cl = cur_tile.qx, cur_tile.qy, cur_tile.level
+            candidates: list[Tile] = []
+            for t in free:
+                if t.id == cur_id:
+                    continue
+                dx, dy = t.qx - cx, t.qy - cy
+                if direction == "up" and dy < 0:
+                    candidates.append(t)
+                elif direction == "down" and dy > 0:
+                    candidates.append(t)
+                elif direction == "left" and dx < 0:
+                    candidates.append(t)
+                elif direction == "right" and dx > 0:
+                    candidates.append(t)
+            if not candidates:
+                return
+            # Pick closest by manhattan distance (y-weighted so up/down
+            # prefers tiles in the same column).
+            if direction in ("up", "down"):
+                candidates.sort(key=lambda t: (abs(t.qy - cy), abs(t.qx - cx)))
+            else:
+                candidates.sort(key=lambda t: (abs(t.qx - cx), abs(t.qy - cy)))
+            self.board.cursor_id = candidates[0].id
+        self.board.refresh_board()
+
+    def action_cursor_confirm(self) -> None:
+        """Enter/Space on the cursor: treat like a click on the current
+        cursor tile."""
+        tid = self.board.cursor_id
+        if tid is None:
+            # Initialize cursor instead.
+            self.action_cursor_move("next")
+            return
+        if tid not in self.game.tiles:
+            return
+        self.post_message(BoardView.TileClicked(tid))
+
+    # ---- modals --------------------------------------------------------
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
+
+    def _show_end_screen(self, *, won: bool) -> None:
+        def _done(action: str | None) -> None:
+            if action == "new":
+                self.action_new_game()
+            elif action == "shuffle":
+                self.action_shuffle()
+            # "close" / None: just dismiss — player keeps the board open.
+
+        g = self.game
+        self.push_screen(
+            GameEndScreen(
+                won=won,
+                elapsed_s=int(g.elapsed()),
+                hints=g.hints_used,
+                shuffles=g.shuffles_used,
+                remaining=g.remaining(),
+            ),
+            _done,
+        )
 
     # ---- message handlers ---------------------------------------------
 
@@ -400,6 +506,9 @@ class MahjongApp(App):
         if self.game.remove_pair(sel_tile, tile):
             self.board.select(None)
             self.board.set_hint(None)
+            # Cursor may be on a just-removed tile — clear.
+            if self.board.cursor_id in (sel_tile.id, tile.id):
+                self.board.cursor_id = None
             self.board.refresh_board()
             self.info.show(
                 f"[green]Pair removed:[/] "
@@ -408,17 +517,9 @@ class MahjongApp(App):
             )
             self.stats.refresh_panel()
             if self.game.won():
-                elapsed = int(self.game.elapsed())
-                mm, ss = divmod(elapsed, 60)
-                self.info.show(
-                    f"[bold green]YOU WIN![/] Cleared in {mm:02d}:{ss:02d} · "
-                    f"{self.game.hints_used} hints · {self.game.shuffles_used} shuffles."
-                )
+                self._show_end_screen(won=True)
             elif self.game.deadlocked():
-                self.info.show(
-                    "[bold red]Deadlock![/] No free matching pairs remain. "
-                    "Press [yellow]u[/] to undo or [yellow]s[/] to shuffle."
-                )
+                self._show_end_screen(won=False)
         else:
             # Not a match — switch selection to the new tile.
             self.board.select(tid)

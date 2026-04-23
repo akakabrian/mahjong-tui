@@ -249,6 +249,30 @@ async def s_win_detected_when_board_empty(app, pilot):
     assert not app.game.deadlocked()
 
 
+async def s_end_screen_opens_on_win(app, pilot):
+    from mahjong_tui.screens import GameEndScreen
+    app._show_end_screen(won=True)
+    await pilot.pause()
+    assert isinstance(app.screen, GameEndScreen)
+    # Dismiss via "close".
+    await pilot.press("escape")
+    await pilot.pause()
+    assert not isinstance(app.screen, GameEndScreen)
+
+
+async def s_end_screen_new_game(app, pilot):
+    from mahjong_tui.screens import GameEndScreen
+    app._show_end_screen(won=False)
+    await pilot.pause()
+    assert isinstance(app.screen, GameEndScreen)
+    # Remove a tile first so we can observe the re-deal resetting count.
+    app.game.tiles.pop(next(iter(app.game.tiles)))
+    assert app.game.remaining() == 143
+    await pilot.press("n")
+    await pilot.pause()
+    assert app.game.remaining() == 144
+
+
 async def s_deadlock_detected(app, pilot):
     # Start from empty, construct a tiny deadlocked board: one free tile +
     # one unmatchable free tile.
@@ -262,16 +286,115 @@ async def s_deadlock_detected(app, pilot):
     assert not app.game.won()
 
 
-async def s_layout_cycle_loads_new_board(app, pilot):
-    before_name = app.game.layout.name
-    before_path = app._layout_path
+async def s_layout_picker_opens_modal(app, pilot):
+    from mahjong_tui.screens import LayoutPickerScreen
     await pilot.press("l")
     await pilot.pause()
-    # If only one layout, the cycle is a no-op; assert shape either way.
-    assert app.game.remaining() > 0
-    # Most common: cycled onto a different file — name may or may not
-    # differ if desktop metadata collides. Path must advance in the cycle.
-    assert app._layout_path is not None
+    assert isinstance(app.screen, LayoutPickerScreen), (
+        f"expected LayoutPickerScreen, got {type(app.screen).__name__}"
+    )
+    # Close the modal.
+    await pilot.press("escape")
+    await pilot.pause()
+    assert not isinstance(app.screen, LayoutPickerScreen)
+
+
+async def s_layout_picker_jk_navigates(app, pilot):
+    from mahjong_tui.screens import LayoutPickerScreen
+    from textual.widgets import ListView
+    await pilot.press("l")
+    await pilot.pause()
+    assert isinstance(app.screen, LayoutPickerScreen)
+    lv = app.screen.query_one("#picker-list", ListView)
+    start = lv.index
+    await pilot.press("j")
+    await pilot.pause()
+    assert lv.index == (start or 0) + 1, (
+        f"j should advance list, got {lv.index} from {start}"
+    )
+    await pilot.press("k")
+    await pilot.pause()
+    assert lv.index == start
+    await pilot.press("escape")
+    await pilot.pause()
+
+
+async def s_help_modal_opens_and_closes(app, pilot):
+    from mahjong_tui.screens import HelpScreen
+    await pilot.press("question_mark")
+    await pilot.pause()
+    assert isinstance(app.screen, HelpScreen)
+    await pilot.press("escape")
+    await pilot.pause()
+    assert not isinstance(app.screen, HelpScreen)
+
+
+async def s_load_layout_swaps_board(app, pilot):
+    # Call _load_layout directly to avoid going through the modal list.
+    from mahjong_tui.app import VENDOR_LAYOUTS
+    alt = VENDOR_LAYOUTS / "pyramid.layout"
+    if not alt.exists():
+        alt = VENDOR_LAYOUTS / "cross.layout"
+    if not alt.exists():
+        return  # skip if missing
+    app._load_layout(alt)
+    assert app._layout_path == alt
+    assert app.game.remaining() == app.game.layout.tile_count
+    assert app.board.cursor_id is None
+    assert app.board.selected_id is None
+
+
+async def s_cursor_tab_walks_free_tiles(app, pilot):
+    # First tab initializes the cursor.
+    assert app.board.cursor_id is None
+    await pilot.press("tab")
+    await pilot.pause()
+    first = app.board.cursor_id
+    assert first is not None
+    assert app.game.is_free(app.game.tiles[first]), "cursor must be on free tile"
+    await pilot.press("tab")
+    await pilot.pause()
+    second = app.board.cursor_id
+    assert second is not None and second != first
+
+
+async def s_cursor_enter_selects(app, pilot):
+    # Tab to init, then enter to select the current cursor tile.
+    await pilot.press("tab")
+    await pilot.pause()
+    tid = app.board.cursor_id
+    assert tid is not None
+    await pilot.press("enter")
+    await pilot.pause()
+    assert app.board.selected_id == tid, (
+        f"expected selected {tid}, got {app.board.selected_id}"
+    )
+
+
+async def s_cursor_escape_clears(app, pilot):
+    await pilot.press("tab")
+    await pilot.pause()
+    assert app.board.cursor_id is not None
+    await pilot.press("escape")
+    await pilot.pause()
+    # First escape clears any selection; second clears cursor. Cursor has
+    # no selection so escape should drop cursor_id.
+    assert app.board.cursor_id is None
+
+
+async def s_cursor_arrow_moves(app, pilot):
+    await pilot.press("tab")
+    await pilot.pause()
+    start = app.board.cursor_id
+    # Arrow keys: try each direction; at least one should yield a different tile.
+    moved = False
+    for key in ("right", "down", "left", "up"):
+        await pilot.press(key)
+        await pilot.pause()
+        if app.board.cursor_id != start:
+            moved = True
+            break
+    assert moved, "no arrow direction moved the cursor"
 
 
 async def s_stats_panel_reflects_state(app, pilot):
@@ -466,8 +589,17 @@ SCENARIOS: list[Scenario] = [
     Scenario("new_game_reseeds", s_new_game_reseeds),
     Scenario("toggle_ascii_changes_mode", s_toggle_ascii_changes_mode),
     Scenario("win_detected_when_board_empty", s_win_detected_when_board_empty),
+    Scenario("end_screen_opens_on_win", s_end_screen_opens_on_win),
+    Scenario("end_screen_new_game", s_end_screen_new_game),
     Scenario("deadlock_detected", s_deadlock_detected),
-    Scenario("layout_cycle_loads_new_board", s_layout_cycle_loads_new_board),
+    Scenario("layout_picker_opens_modal", s_layout_picker_opens_modal),
+    Scenario("layout_picker_jk_navigates", s_layout_picker_jk_navigates),
+    Scenario("help_modal_opens_and_closes", s_help_modal_opens_and_closes),
+    Scenario("load_layout_swaps_board", s_load_layout_swaps_board),
+    Scenario("cursor_tab_walks_free_tiles", s_cursor_tab_walks_free_tiles),
+    Scenario("cursor_enter_selects", s_cursor_enter_selects),
+    Scenario("cursor_escape_clears", s_cursor_escape_clears),
+    Scenario("cursor_arrow_moves", s_cursor_arrow_moves),
     Scenario("stats_panel_reflects_state", s_stats_panel_reflects_state),
     Scenario("status_bar_shows_time_and_count", s_status_bar_shows_time_and_count),
     Scenario("all_layouts_parse", s_all_layouts_parse),

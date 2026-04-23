@@ -110,6 +110,7 @@ _SHADOW_BOT = "rgb(130,95,50)"     # bottom-edge shadow (depth)
 _DIM_BG = "rgb(160,150,125)"       # dim (blocked) face bg
 _FREE_BG = "rgb(255,245,215)"      # bright (free) face bg
 _SEL_BG = "rgb(255,200,80)"        # yellow selected bg
+_CUR_BG = "rgb(120,220,140)"       # green cursor bg
 _HINT_BG = "rgb(180,220,255)"      # blue hint bg
 _FG_EDGE_STYLE = Style.parse(f"{_EDGE} on {_BASE_BG}")
 
@@ -239,11 +240,12 @@ def _paint_tile(chars, styles, tile: Tile, *, is_free: bool, is_selected: bool,
         # ASCII 2-char.
         face_chars = [glyph[0], glyph[1] if len(glyph) > 1 else " "]
 
-    # Background colour depends on state.
+    # Background colour depends on state. Selection wins over cursor,
+    # which wins over hint, which wins over free-vs-blocked base tint.
     if is_selected:
         bg = _SEL_BG
     elif is_cursor:
-        bg = _SEL_BG  # same highlight — we visually overlap these concepts
+        bg = _CUR_BG
     elif is_hint:
         bg = _HINT_BG
     elif is_free:
