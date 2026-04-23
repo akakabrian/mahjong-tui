@@ -132,19 +132,19 @@ class StatsPanel(Static):
     def refresh_panel(self) -> None:
         g = self.game
         total = g.layout.tile_count
-        removed = total - g.remaining()
+        removed = total - g.remaining
         pairs_removed = removed // 2
         total_pairs = total // 2
         elapsed = int(g.elapsed())
         mm, ss = divmod(elapsed, 60)
-        snap = (g.remaining(), pairs_removed, elapsed // 5, g.hints_used,
+        snap = (g.remaining, pairs_removed, elapsed // 5, g.hints_used,
                 g.shuffles_used, g.layout.name)
         if snap == self._last_tuple:
             return
         self._last_tuple = snap
         t = Text()
         t.append(f"Layout   {g.layout.name}\n", style="bold cyan")
-        t.append(f"Tiles    {g.remaining()}/{total}\n")
+        t.append(f"Tiles    {g.remaining}/{total}\n")
         t.append(f"Pairs    {pairs_removed}/{total_pairs}\n")
         t.append(f"Time     {mm:02d}:{ss:02d}\n", style="bold")
         t.append(f"Hints    {g.hints_used}\n", style="dim")
@@ -277,9 +277,9 @@ class MahjongApp(App):
         total = g.layout.tile_count
         elapsed = int(g.elapsed())
         mm, ss = divmod(elapsed, 60)
-        moves = "free pair available" if g.has_moves() else "[red]DEADLOCK[/]"
+        moves = "free pair available" if g.has_moves else "[red]DEADLOCK[/]"
         self.status_bar.update(Text.from_markup(
-            f"[bold]{g.layout.name}[/]  ·  {g.remaining()}/{total} tiles  ·  "
+            f"[bold]{g.layout.name}[/]  ·  {g.remaining}/{total} tiles  ·  "
             f"{mm:02d}:{ss:02d}  ·  {moves}"
         ))
 
@@ -472,7 +472,7 @@ class MahjongApp(App):
                 elapsed_s=int(g.elapsed()),
                 hints=g.hints_used,
                 shuffles=g.shuffles_used,
-                remaining=g.remaining(),
+                remaining=g.remaining,
             ),
             _done,
         )
@@ -515,9 +515,9 @@ class MahjongApp(App):
                 f"{tileset.FACES[tile.face].name}"
             )
             self.stats.refresh_panel()
-            if self.game.won():
+            if self.game.won:
                 self._show_end_screen(won=True)
-            elif self.game.deadlocked():
+            elif self.game.deadlocked:
                 self._show_end_screen(won=False)
         else:
             # Not a match — switch selection to the new tile.

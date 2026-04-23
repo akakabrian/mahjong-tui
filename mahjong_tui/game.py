@@ -186,6 +186,7 @@ class Game:
 
     # ---- read ----
 
+    @property
     def remaining(self) -> int:
         return len(self.tiles)
 
@@ -223,14 +224,24 @@ class Game:
                     out.append((a, b))
         return out
 
+    @property
     def has_moves(self) -> bool:
         return bool(self.free_pairs())
 
+    @property
     def won(self) -> bool:
+        """True when all tiles have been removed (victory condition).
+
+        Exposed as a property so external state-inspection tools (e.g.
+        the dogfood driver) read an actual bool rather than a bound
+        method object.
+        """
         return not self.tiles
 
+    @property
     def deadlocked(self) -> bool:
-        return bool(self.tiles) and not self.has_moves()
+        """True when tiles remain but no free matching pair exists."""
+        return bool(self.tiles) and not self.has_moves
 
     # ---- mutate ----
 
@@ -281,7 +292,7 @@ class Game:
             rng.shuffle(faces)
             for t, f in zip(self.tiles.values(), faces):
                 t.face = f
-            if self.has_moves():
+            if self.has_moves:
                 return
         # Fall back to whatever we've got.
 

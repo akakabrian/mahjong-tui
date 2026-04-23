@@ -78,7 +78,7 @@ async def s_mount_clean(app, pilot):
     assert app.info is not None
     assert app.help_panel is not None
     assert app.game is not None
-    assert app.game.remaining() > 0
+    assert app.game.remaining > 0
 
 
 async def s_default_layout_is_turtle(app, pilot):
@@ -91,7 +91,7 @@ async def s_free_pairs_available_on_deal(app, pilot):
     # Solvable deal must have at least one free pair.
     pairs = app.game.free_pairs()
     assert len(pairs) > 0, "fresh deal should have available moves"
-    assert app.game.has_moves()
+    assert app.game.has_moves
 
 
 async def s_render_produces_glyphs(app, pilot):
@@ -109,8 +109,8 @@ async def s_render_produces_glyphs(app, pilot):
 async def s_hotspots_cover_all_tiles(app, pilot):
     out = app.board._render_out
     assert out is not None
-    assert len(out.hotspots) == app.game.remaining(), (
-        f"hotspots={len(out.hotspots)} tiles={app.game.remaining()}"
+    assert len(out.hotspots) == app.game.remaining, (
+        f"hotspots={len(out.hotspots)} tiles={app.game.remaining}"
     )
 
 
@@ -133,14 +133,14 @@ async def s_match_removes_pair_via_clicks(app, pilot):
     pair = _pick_free_pair(app.game)
     assert pair is not None, "no free pair available"
     a, b = pair
-    remaining_before = app.game.remaining()
+    remaining_before = app.game.remaining
     await _click_tile(pilot, app, a)
     assert app.board.selected_id == a.id, (
         f"expected {a.id} selected, got {app.board.selected_id}"
     )
     await _click_tile(pilot, app, b)
-    assert app.game.remaining() == remaining_before - 2, (
-        f"remaining {remaining_before} → {app.game.remaining()}"
+    assert app.game.remaining == remaining_before - 2, (
+        f"remaining {remaining_before} → {app.game.remaining}"
     )
     assert a.id not in app.game.tiles
     assert b.id not in app.game.tiles
@@ -152,26 +152,26 @@ async def s_undo_restores_pair(app, pilot):
     a, b = pair
     ok = app.game.remove_pair(a, b)
     assert ok
-    assert app.game.remaining() == 142
+    assert app.game.remaining == 142
     await pilot.press("u")
     await pilot.pause()
-    assert app.game.remaining() == 144, app.game.remaining()
+    assert app.game.remaining == 144, app.game.remaining
     assert a.id in app.game.tiles
     assert b.id in app.game.tiles
 
 
 async def s_undo_empty_is_noop(app, pilot):
-    remaining_before = app.game.remaining()
+    remaining_before = app.game.remaining
     await pilot.press("u")
     await pilot.pause()
-    assert app.game.remaining() == remaining_before
+    assert app.game.remaining == remaining_before
 
 
 async def s_shuffle_preserves_tile_count(app, pilot):
-    before = app.game.remaining()
+    before = app.game.remaining
     await pilot.press("s")
     await pilot.pause()
-    assert app.game.remaining() == before
+    assert app.game.remaining == before
     assert app.game.shuffles_used == 1
 
 
@@ -180,10 +180,10 @@ async def s_new_game_reseeds(app, pilot):
     pair = _pick_free_pair(app.game)
     assert pair is not None
     app.game.remove_pair(*pair)
-    assert app.game.remaining() == 142
+    assert app.game.remaining == 142
     await pilot.press("n")
     await pilot.pause()
-    assert app.game.remaining() == 144
+    assert app.game.remaining == 144
     assert not app.game.history
 
 
@@ -221,10 +221,10 @@ async def s_non_matching_click_switches_selection(app, pilot):
     a, b = picked
     await _click_tile(pilot, app, a)
     assert app.board.selected_id == a.id
-    remaining = app.game.remaining()
+    remaining = app.game.remaining
     await _click_tile(pilot, app, b)
     # Nothing removed, but selection moves to b.
-    assert app.game.remaining() == remaining
+    assert app.game.remaining == remaining
     assert app.board.selected_id == b.id
 
 
@@ -234,9 +234,9 @@ async def s_blocked_tile_click_is_noop(app, pilot):
     if not blocked:
         return  # no blocked tiles to test
     t = blocked[0]
-    remaining = app.game.remaining()
+    remaining = app.game.remaining
     await _click_tile(pilot, app, t)
-    assert app.game.remaining() == remaining
+    assert app.game.remaining == remaining
     assert app.board.selected_id is None, (
         f"blocked tile click should not select, got {app.board.selected_id}"
     )
@@ -245,8 +245,9 @@ async def s_blocked_tile_click_is_noop(app, pilot):
 async def s_win_detected_when_board_empty(app, pilot):
     # Simulate a win by removing all tiles directly.
     app.game.tiles.clear()
-    assert app.game.won()
-    assert not app.game.deadlocked()
+    assert app.game.won
+    assert not app.game.deadlocked
+
 
 
 async def s_end_screen_opens_on_win(app, pilot):
@@ -267,10 +268,10 @@ async def s_end_screen_new_game(app, pilot):
     assert isinstance(app.screen, GameEndScreen)
     # Remove a tile first so we can observe the re-deal resetting count.
     app.game.tiles.pop(next(iter(app.game.tiles)))
-    assert app.game.remaining() == 143
+    assert app.game.remaining == 143
     await pilot.press("n")
     await pilot.pause()
-    assert app.game.remaining() == 144
+    assert app.game.remaining == 144
 
 
 async def s_deadlock_detected(app, pilot):
@@ -281,9 +282,10 @@ async def s_deadlock_detected(app, pilot):
     # Two free, non-matching tiles far apart — different faces, no overlap.
     app.game.tiles[0] = Tile(id=0, slot=Slot(qx=0, qy=0, level=0), face=0)
     app.game.tiles[1] = Tile(id=1, slot=Slot(qx=10, qy=0, level=0), face=5)
-    assert app.game.has_moves() is False
-    assert app.game.deadlocked()
-    assert not app.game.won()
+    assert app.game.has_moves is False
+    assert app.game.deadlocked
+
+    assert not app.game.won
 
 
 async def s_layout_picker_opens_modal(app, pilot):
@@ -339,7 +341,7 @@ async def s_load_layout_swaps_board(app, pilot):
         return  # skip if missing
     app._load_layout(alt)
     assert app._layout_path == alt
-    assert app.game.remaining() == app.game.layout.tile_count
+    assert app.game.remaining == app.game.layout.tile_count
     assert app.board.cursor_id is None
     assert app.board.selected_id is None
 
@@ -450,7 +452,7 @@ async def s_deal_is_solvable(app, pilot):
     layout = parse_layout(VENDOR_LAYOUTS / "default.layout")
     for seed in (1, 2, 3, 100, 999):
         g = Game.new(layout, seed=seed)
-        assert g.has_moves(), f"seed {seed}: no moves on fresh deal"
+        assert g.has_moves, f"seed {seed}: no moves on fresh deal"
 
 
 async def s_season_group_matches_any_season(app, pilot):
@@ -553,7 +555,7 @@ async def s_undo_after_shuffle_is_safe(app, pilot):
     pair = _pick_free_pair(app.game)
     assert pair is not None
     app.game.remove_pair(*pair)
-    assert app.game.remaining() == 142
+    assert app.game.remaining == 142
     await pilot.press("s")
     await pilot.pause()
     # After shuffle, history cleared; undo returns None.

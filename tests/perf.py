@@ -35,7 +35,7 @@ async def main() -> None:
         board = app.board
         out = board._render_out
         assert out is not None
-        print(f"\nbaseline — layout={game.layout.name}  tiles={game.remaining()}")
+        print(f"\nbaseline — layout={game.layout.name}  tiles={game.remaining}")
         print(f"grid     — {out.width}x{out.height}  viewport=(200,60)")
         print()
 

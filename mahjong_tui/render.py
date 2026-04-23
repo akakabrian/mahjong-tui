@@ -262,21 +262,29 @@ def _paint_tile(chars, styles, tile: Tile, *, is_free: bool, is_selected: bool,
     )
 
 
+_NULL_STYLE = Style()
+
+
 def strip_for_row(out: RenderOutput, row: int, *, max_width: int) -> list[Segment]:
     """Run-length-encode one row's chars + styles into rich Segments for
     a Textual Strip. `max_width` truncates (padded with spaces) so the
-    Strip matches the viewport width the widget promises."""
+    Strip matches the viewport width the widget promises.
+
+    All Segments carry an explicit Style (never None) so Textual's
+    monochrome/dim filters can safely access style.color without
+    AttributeError.
+    """
     if row < 0 or row >= out.height:
-        return [Segment(" " * max_width)]
+        return [Segment(" " * max_width, _NULL_STYLE)]
     chars = out.chars[row]
     styles = out.styles[row]
     segments: list[Segment] = []
     run: list[str] = []
-    run_style: Style | None = None
+    run_style: Style = _NULL_STYLE
     width = min(len(chars), max_width)
     for i in range(width):
         ch = chars[i] or " "
-        st = styles[i]
+        st: Style = styles[i] or _NULL_STYLE
         if st == run_style:
             run.append(ch)
         else:
@@ -288,7 +296,7 @@ def strip_for_row(out: RenderOutput, row: int, *, max_width: int) -> list[Segmen
         segments.append(Segment("".join(run), run_style))
     remaining = max_width - width
     if remaining > 0:
-        segments.append(Segment(" " * remaining))
+        segments.append(Segment(" " * remaining, _NULL_STYLE))
     return segments
 
 
