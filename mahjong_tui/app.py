@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import random
-import time
 from pathlib import Path
 
 from rich.text import Text
-from rich.style import Style
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.geometry import Size
+from textual.message import Message
 from textual.reactive import reactive
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
@@ -21,7 +20,7 @@ from textual.widgets import Footer, Header, Static
 from . import render as R
 from . import tiles as tileset
 from .game import Game, Tile
-from .layout import Layout, parse_layout, available_layouts, load_desktop_metadata
+from .layout import parse_layout, load_desktop_metadata
 from .screens import HelpScreen, LayoutPickerScreen, GameEndScreen
 
 
@@ -115,7 +114,7 @@ class BoardView(ScrollView):
         # Post a message the App handles — keeps mouse + keyboard unified.
         self.post_message(self.TileClicked(best_id))
 
-    class TileClicked(events.Message):
+    class TileClicked(Message):
         def __init__(self, tile_id: int) -> None:
             self.tile_id = tile_id
             super().__init__()
@@ -276,7 +275,6 @@ class MahjongApp(App):
     def _update_status(self) -> None:
         g = self.game
         total = g.layout.tile_count
-        removed = total - g.remaining()
         elapsed = int(g.elapsed())
         mm, ss = divmod(elapsed, 60)
         moves = "free pair available" if g.has_moves() else "[red]DEADLOCK[/]"
@@ -335,6 +333,7 @@ class MahjongApp(App):
         self.stats.game = self.game
         self.board.select(None)
         self.board.set_hint(None)
+        self.board.cursor_id = None
         self.board._virtual_sized = False  # may change size across layouts
         self.board.refresh_board()
         self.info.show("[green]New game dealt.[/]")
@@ -416,7 +415,7 @@ class MahjongApp(App):
             self.board.cursor_id = ids[(i + step) % len(ids)]
         else:
             # Nearest free tile in the given direction by grid position.
-            cx, cy, cl = cur_tile.qx, cur_tile.qy, cur_tile.level
+            cx, cy = cur_tile.qx, cur_tile.qy
             candidates: list[Tile] = []
             for t in free:
                 if t.id == cur_id:

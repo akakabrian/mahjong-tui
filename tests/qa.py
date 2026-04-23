@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from mahjong_tui.app import MahjongApp, BoardView
+from mahjong_tui.app import MahjongApp
 from mahjong_tui.game import Game, Tile
 from mahjong_tui import tiles as tileset
 from mahjong_tui import render as R

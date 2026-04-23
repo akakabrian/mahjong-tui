@@ -1,4 +1,4 @@
-.PHONY: all venv run test test-only clean
+.PHONY: all venv run test test-only perf playtest tile-check clean
 
 all: venv
 
@@ -19,6 +19,9 @@ test-only: venv
 
 perf: venv
 	.venv/bin/python -m tests.perf
+
+playtest: venv
+	.venv/bin/python -m tests.playtest
 
 tile-check: venv
 	.venv/bin/python -m tests.tile_test

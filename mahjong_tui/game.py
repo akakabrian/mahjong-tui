@@ -133,13 +133,6 @@ class Game:
         # Simulate: start with an empty board, grow it by placing pairs
         # into slots that would be "free" given currently-placed tiles.
         placed: dict[Slot, int] = {}   # slot -> face ID (growing set)
-        # Precompute adjacency / stack structure for free-test speed.
-        geom = _StackGeometry(self.layout)
-        empties: set[Slot] = set(self.layout.slots)
-
-        # Track positions we've already tried-and-failed in this round so
-        # we don't loop forever on a bad partial.
-        max_retries = 50
 
         # Seed: place pairs one at a time. For each pair, we need two
         # slots that are BOTH "reachable" — i.e. if placed now, they
@@ -282,10 +275,8 @@ class Game:
             rng = random.Random()
         self.shuffles_used += 1
         faces = [t.face for t in self.tiles.values()]
-        rng.shuffle(faces)
         # Naive re-shuffle — may produce deadlock in rare cases. Rerun
         # up to 10 times until a solvable board appears.
-        original = faces[:]
         for _ in range(10):
             rng.shuffle(faces)
             for t, f in zip(self.tiles.values(), faces):
@@ -306,19 +297,6 @@ class Game:
 
 
 # ---- geometry helpers ----------------------------------------------------
-
-class _StackGeometry:
-    """Cached adjacency for a layout — which slots sit ON which slots,
-    and which slots are LEFT / RIGHT same-level neighbours. Used to
-    accelerate is_free() during the solvable deal."""
-
-    def __init__(self, layout: Layout) -> None:
-        by_pos: dict[tuple[int, int, int], Slot] = {
-            (s.qx, s.qy, s.level): s for s in layout.slots
-        }
-        self.all = list(layout.slots)
-        self.by_pos = by_pos
-
 
 def _is_free_given_tiles(tile: Tile, all_tiles: Iterable[Tile]) -> bool:
     """Standalone free-test so the solvable-deal planner can reuse it
@@ -363,10 +341,9 @@ def _is_free_given_tiles(tile: Tile, all_tiles: Iterable[Tile]) -> bool:
         # y-overlap?
         if not (t.qy <= qy + 1 and t.qy + 1 >= qy):
             continue
-        # Left side: another tile's right-edge abuts our left-edge.
-        if t.qx + 1 >= qx - 1 and t.qx + 1 < qx:
-            left_blocked = True
-        elif t.qx <= qx - 1 and t.qx + 1 >= qx - 1:
+        # Left side: another tile occupies the slot immediately left
+        # (its footprint covers qx-1).
+        if t.qx <= qx - 1 and t.qx + 1 >= qx - 1:
             left_blocked = True
         # Right side: another tile's left-edge abuts our right-edge.
         if t.qx <= qx + 2 and t.qx + 1 >= qx + 2:

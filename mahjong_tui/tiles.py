@@ -14,7 +14,6 @@ matches the 2-cell-wide geometry we want for the board.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 
 # ---- face IDs ------------------------------------------------------------

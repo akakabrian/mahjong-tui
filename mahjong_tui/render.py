@@ -41,7 +41,6 @@ Rendering algorithm:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 from rich.style import Style
 from rich.segment import Segment
@@ -58,11 +57,6 @@ ROW_STEP = 1
 # Tile footprint in terminal cells.
 TILE_W = 2
 TILE_H = 2
-
-# Set at the start of render_board() so _paint_tile can position tiles
-# relative to a consistent top margin. Not thread-safe, but Textual's
-# rendering is single-threaded so that's fine.
-_TOP_MARGIN: int = 1
 
 
 @dataclass
@@ -146,8 +140,7 @@ def render_board(
     hotspots: dict[int, Hotspot] = {}
     # Top margin — enough room for the tallest stack to paint up from a
     # level-0 anchor at row `qy*TILE_H + top_margin`.
-    global _TOP_MARGIN
-    _TOP_MARGIN = (game.layout.depth + 1) * ROW_STEP + 1
+    top_margin = (game.layout.depth + 1) * ROW_STEP + 1
 
     # Sort tiles bottom-up, and for tiles on the same level, left-to-right
     # / top-to-bottom so rightward/downward tiles don't shadow-overwrite
@@ -169,6 +162,7 @@ def render_board(
             is_cursor=(t.id == cursor_id),
             ascii_only=ascii_only,
             hotspots=hotspots,
+            top_margin=top_margin,
         )
     return RenderOutput(width=cols, height=rows, chars=chars, styles=styles,
                         hotspots=hotspots)
@@ -176,7 +170,7 @@ def render_board(
 
 def _paint_tile(chars, styles, tile: Tile, *, is_free: bool, is_selected: bool,
                 is_hint: bool, is_cursor: bool, ascii_only: bool,
-                hotspots: dict) -> None:
+                hotspots: dict, top_margin: int) -> None:
     """Overwrite a 2×2 region (plus right/bottom shadow cells on the
     row/col beyond) for this tile.
 
@@ -185,41 +179,20 @@ def _paint_tile(chars, styles, tile: Tile, *, is_free: bool, is_selected: bool,
     the highest tile still fits; we express `row` as
     (qy * TILE_H) + top_margin + (-level * ROW_STEP).
     """
-    # chars is a list[list[str]] with rows >= 0. To guarantee the top
-    # level's row fits, callers must size the grid to include a top
-    # margin large enough for the deepest stack. We compute that margin
-    # from the actual chars array size vs. the layout dimensions.
+    # chars is a list[list[str]] with rows >= 0. The caller (board_dims)
+    # sized the grid to fit the deepest stack's top row. Layout: row 0 is
+    # the top of the grid; level 0 anchors near the bottom, each higher
+    # level shifts up by ROW_STEP and right by COL_STEP.
     n_rows = len(chars)
     n_cols = len(chars[0]) if chars else 0
-    # Reserve 1 bottom row too for the shadow strip.
-    top_margin = max(1, n_rows - (tile.qy + 1) * TILE_H - 1)
-    # Actually we want the top margin to be CONSTANT across the render
-    # pass so all tiles align. Retrieve it from the first chars row:
-    # easier to just compute once outside — but since we don't want to
-    # plumb a "layout depth" through, we instead use a fixed top margin
-    # of (max_level_possible * ROW_STEP). The caller (board_dims) sized
-    # the grid to (layout.height_q*2 + (depth+1)*ROW_STEP + 2), so the
-    # top margin is fixed at (n_rows - layout.height_q*2 - 1 = depth+1).
-    # We can recover depth from (n_rows - height_q*2 - 1) / ROW_STEP, but
-    # we don't know height_q here. Simplest: use a large enough fixed
-    # margin. Since board_dims computes `rows = height_q*2 + (depth+1)+2`,
-    # and we want row 0 at the TOP, the per-tile offset is
-    # (depth - level) * ROW_STEP. We approximate depth by saying the
-    # grid's FIRST usable row is 1, and each increment of level shifts
-    # up by ROW_STEP. Use `n_rows - 2 - tile.qy*TILE_H` as the level-0
-    # row (tile bottom-aligned to its qy) and subtract (level * ROW_STEP).
     col = tile.qx * TILE_W + tile.level * COL_STEP + 1
     # Compute the row for this tile: we render top-down in the grid, so
     # qy=0 is near the top. Stacking shifts level>0 tiles upward — that
     # means SMALLER row index. Level 0 tiles anchor at
-    # row = qy*TILE_H + top_pad, and each level above subtracts ROW_STEP.
-    # top_pad is set to leave enough room: (max_level * ROW_STEP) + 1.
-    # We don't know max_level here, so we use the grid height to derive
-    # how much room is above qy*TILE_H.
-    # Simpler + correct: use module-global _paint_top_margin set by the
-    # render_board function before any tile is painted.
-    global _TOP_MARGIN
-    row = tile.qy * TILE_H + _TOP_MARGIN - tile.level * ROW_STEP
+    # row = qy*TILE_H + top_margin, and each level above subtracts ROW_STEP.
+    # top_margin is passed in by render_board and sized to leave enough
+    # room: (max_level * ROW_STEP) + 1.
+    row = tile.qy * TILE_H + top_margin - tile.level * ROW_STEP
     # Clip to grid.
     if row < 0 or row + 1 >= n_rows:
         return
@@ -304,7 +277,7 @@ def strip_for_row(out: RenderOutput, row: int, *, max_width: int) -> list[Segmen
     for i in range(width):
         ch = chars[i] or " "
         st = styles[i]
-        if st is run_style:
+        if st == run_style:
             run.append(ch)
         else:
             if run:
