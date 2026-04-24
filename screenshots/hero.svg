@@ -58,6 +58,6 @@
 <text x="0" y="892" fill="#eee" xml:space="preserve">│                                                                                                                                                    ││                                                │</text>
 <text x="0" y="908" fill="#eee" xml:space="preserve">│                                                                                                                                                    ││                                                │</text>
 <text x="0" y="924" fill="#eee" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯│                                                │</text>
-<text x="0" y="940" fill="#eee" xml:space="preserve"> Default  ·  144/144 tiles  ·  00:01  ·  free pair available                                                                                          ╰────────────────────────────────────────────────╯</text>
+<text x="0" y="940" fill="#eee" xml:space="preserve"> Default  ·  144/144 tiles  ·  00:00  ·  free pair available                                                                                          ╰────────────────────────────────────────────────╯</text>
 <text x="0" y="956" fill="#eee" xml:space="preserve"> q Quit  h Hint  u Undo  s Shuffle  n New  l Layout  a ASCII  ? Help                                                                                                                        ▏^p palette</text>
 </svg>
